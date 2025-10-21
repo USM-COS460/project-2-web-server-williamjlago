@@ -1,10 +1,27 @@
 import socket
 import mimetypes
+from datetime import datetime, timezone
 import sys
 import os
 
+server_name = "LocalHTTPServer"
+
+def send_response(conn, status, mimetype, body):
+    dt = datetime.now(timezone.utc)
+    timestamp = dt.strftime("%a, %d %b %Y %X GMT")
+    header = (
+            f"HTTP/1.1 {status}\r\n"
+            f"Date: {timestamp}\r\n"
+            f"Server: {server_name}/2.1\r\n"
+            f"Content-Type: {mimetype}\r\n"
+            f"Content-Length: {len(body)}\r\n"
+            "\r\n"
+    )
+    conn.sendall(header.encode('utf-8') + body)
+    return
+
 def safe_join(root, path):
-    # Normalize path and ensure it does not escape the web root
+    # Normalize path and ensure it does not escape the server root
     path = path.lstrip('/')
     full_path = os.path.normpath(os.path.join(root, path))
     abs_root = os.path.abspath(root)
@@ -22,50 +39,30 @@ def handle_request(conn, docroot):
     request_line = lines[0]
     parts = request_line.split()
     if len(parts) != 3:
-        response_body = "Malformed request line"
-        response = (
-                "HTTP/1.1 400 Bad Request\r\n"
-                f"Content-Length: {len(response_body)}\r\n"
-                "Content-Type: text/plain\r\n"
-                "\r\n"
-                + response_body
-        )
-        conn.sendall(response.encode('utf-8'))
+        code = "400 Bad Request"
+        send_response(conn, code, "text/plain", f"{code}\r\n".encode('utf-8'))
         return
 
     method, path, versions = parts
 
     # Only worried about handling GET
     if method != "GET":
-        response_body = "501 Not Implemented"
-        response = (
-                "HTTP/1.1 501 Not Implemented\r\n"
-                f"Content-Length: {len(response_body)}\r\n"
-                "Content-Type: text/plain\r\n"
-                "\r\n"
-                + response_body
-        )
-        conn.sendall(response.encode('utf-8'))
+        code = "501 Not Implemented"
+        send_response(conn, code, "text/plain", f"{code}\r\n".encode('utf-8'))
         return
 
-    # Handle root request
+    # Automatically display index.html if root requested
     if path == "/":
         path = "/index.html"
 
     full_path = safe_join(docroot, path)
     if full_path is None or not os.path.exists(full_path):
-        response_body = "404 Not Found"
-        response = (
-                "HTTP/1.1 404 Not Found\r\n"
-                f"Content-Length: {len(response_body)}\r\n"
-                "Content-Type: text/plain\r\n"
-                "\r\n"
-                + response_body
-        )
-        conn.sendall(response.encode('utf-8'))
+        code = "404 Not Found"
+        send_response(conn, code, "text/plain", f"{code}\r\n".encode('utf-8'))
         return
 
     # Serve file
+    code = "200 OK"
     with open(full_path, 'rb') as f:
         content = f.read()
 
@@ -73,14 +70,7 @@ def handle_request(conn, docroot):
     if mimetype is None:
         mimetype = "application/octet-stream"
 
-    header = (
-        "HTTP/1.1 200 OK\r\n"
-        f"Content-Length: {len(content)}\r\n"
-        f"Content-Type: {mimetype}\r\n"
-        "\r\n"
-    )
-
-    conn.sendall(header.encode('utf-8') + content)
+    send_response(conn, code, mimetype, content)
 
 def serve(docroot, host='0.0.0.0', port=3377):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
