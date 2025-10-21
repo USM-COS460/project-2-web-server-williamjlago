@@ -1,5 +1,6 @@
 import socket
 import mimetypes
+import threading
 from datetime import datetime, timezone
 import sys
 import os
@@ -30,47 +31,51 @@ def safe_join(root, path):
         return None
     return abs_full
 
-def handle_request(conn, docroot):
-    request = conn.recv(2048).decode('utf-8', errors='replace')
-    lines = request.splitlines()
-    if not lines:
-        return
+def handle_request(conn, addr, docroot):
+    try:
+        request = conn.recv(2048).decode('utf-8', errors='replace')
+        lines = request.splitlines()
+        if not lines:
+            return
 
-    request_line = lines[0]
-    parts = request_line.split()
-    if len(parts) != 3:
-        code = "400 Bad Request"
-        send_response(conn, code, "text/plain", f"{code}\r\n".encode('utf-8'))
-        return
+        request_line = lines[0]
+        parts = request_line.split()
+        if len(parts) != 3:
+            code = "400 Bad Request"
+            send_response(conn, code, "text/plain", f"{code}\r\n".encode('utf-8'))
+            return
 
-    method, path, versions = parts
+        method, path, versions = parts
 
-    # Only worried about handling GET
-    if method != "GET":
-        code = "501 Not Implemented"
-        send_response(conn, code, "text/plain", f"{code}\r\n".encode('utf-8'))
-        return
+        # Only worried about handling GET
+        if method != "GET":
+            code = "501 Not Implemented"
+            send_response(conn, code, "text/plain", f"{code}\r\n".encode('utf-8'))
+            return
 
-    # Automatically display index.html if root requested
-    if path == "/":
-        path = "/index.html"
+        # Automatically display index.html if root requested
+        if path == "/":
+            path = "/index.html"
 
-    full_path = safe_join(docroot, path)
-    if full_path is None or not os.path.exists(full_path):
-        code = "404 Not Found"
-        send_response(conn, code, "text/plain", f"{code}\r\n".encode('utf-8'))
-        return
+        full_path = safe_join(docroot, path)
+        if full_path is None or not os.path.exists(full_path):
+            code = "404 Not Found"
+            send_response(conn, code, "text/plain", f"{code}\r\n".encode('utf-8'))
+            return
 
-    # Serve file
-    code = "200 OK"
-    with open(full_path, 'rb') as f:
-        content = f.read()
+        # Serve file
+        code = "200 OK"
+        with open(full_path, 'rb') as f:
+            content = f.read()
 
-    mimetype, _ = mimetypes.guess_type(full_path)
-    if mimetype is None:
-        mimetype = "application/octet-stream"
+        mimetype, _ = mimetypes.guess_type(full_path)
+        if mimetype is None:
+            mimetype = "application/octet-stream"
 
-    send_response(conn, code, mimetype, content)
+        send_response(conn, code, mimetype, content)
+    finally:
+        conn.close()
+        print(f"Client {str(addr)} disconnected")
 
 def serve(docroot, host='0.0.0.0', port=3377):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -80,8 +85,10 @@ def serve(docroot, host='0.0.0.0', port=3377):
 
     while True:
         conn, addr = s.accept()
-        handle_request(conn, docroot)
-        conn.close()
+        print(f"Client {str(addr)} connected")
+        thread = threading.Thread(target=handle_request, args=(conn, addr, docroot))
+        print(f"Thread created for {str(addr)}; total threads: {str(threading.active_count())}")
+        thread.start()
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
