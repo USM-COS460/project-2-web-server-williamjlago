@@ -45,10 +45,10 @@ def handle_request(conn, addr, docroot):
             send_response(conn, code, "text/plain", f"{code}\r\n".encode('utf-8'))
             return
 
-        method, path, versions = parts
+        request_type, path, version = parts
 
         # Only worried about handling GET
-        if method != "GET":
+        if request_type != "GET":
             code = "501 Not Implemented"
             send_response(conn, code, "text/plain", f"{code}\r\n".encode('utf-8'))
             return
