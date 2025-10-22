@@ -13,9 +13,9 @@ No compilation required; see below.
 
 * Ensure Python is installed and up-to-date.
 * Navigate to the project directory in Terminal.
-* Enter "http_server.py <port> www" to launch the server on the given localhost port.
-* Connect to localhost:<port> in any web browser to view the sample index.html.
-* "telnet localhost <port>" can also be used to directly connect to the server and send it keyboard input, useful for testing error responses and concurrent connections.
+* Enter "http_server.py \<port\> www" to launch the server on the given localhost port.
+* Connect to localhost:\<port\> in any web browser to view the sample index.html.
+* "telnet localhost \<port\>" can also be used to directly connect to the server and send it keyboard input, useful for testing error responses and concurrent connections.
 
 ## My experience with this project
 
